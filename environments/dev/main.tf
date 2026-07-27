@@ -56,4 +56,4 @@ module "cloudwatch_alarms" {
 output "vpc_id"       { value = module.vpc.vpc_id }
 output "bucket_id"    { value = module.app_bucket.bucket_id }
 output "web_ip"       { value = module.web_server.private_ip }
-output "sns_topic_arn" { value = aws_sns_topic.alerts.arn }
+output "sns_topic_arn" { value = aws_sns_topic.alerts.arn }# ci-debug-trigger
