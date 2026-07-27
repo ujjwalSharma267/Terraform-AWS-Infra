@@ -1,0 +1,65 @@
+name: Terraform Plan & Apply
+
+on:
+  pull_request:
+    paths: ["environments/**", "modules/**"]
+  push:
+    branches: [main]
+    paths: ["environments/**", "modules/**"]
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: { env: [dev, prod] }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::ACCOUNT_ID:role/github-actions-terraform
+          aws-region: ap-south-1
+
+      - name: Terraform fmt check
+        working-directory: environments/${{ matrix.env }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: environments/${{ matrix.env }}
+        run: terraform init
+
+      - name: Terraform validate
+        working-directory: environments/${{ matrix.env }}
+        run: terraform validate
+
+      - name: Terraform plan
+        working-directory: environments/${{ matrix.env }}
+        run: terraform plan -no-color -out tfplan
+
+      # Manual approval gate for prod apply happens via a protected
+      # GitHub Environment; apply only runs on main after review.
+
+  apply:
+    needs: plan
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production   # requires manual approval in GitHub UI
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::ACCOUNT_ID:role/github-actions-terraform
+          aws-region: ap-south-1
+      - working-directory: environments/prod
+        run: |
+          terraform init
+          terraform apply -auto-approve
